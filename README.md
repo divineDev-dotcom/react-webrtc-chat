@@ -23,7 +23,7 @@ To run the project locally, follow these steps:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/divineDEV-dotcom/react-webrtc-chat.git
+   git clone https://github.com/divineDev-dotcom/react-webrtc-chat.git
    cd react-webrtc-chat
    ```
 

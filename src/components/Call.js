@@ -16,7 +16,6 @@ const Call = ({ userName, setIsCalling }) => {
   const peerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Initialize PeerJS
   useEffect(() => {
     const peer = new Peer();
     peerRef.current = peer;
@@ -31,14 +30,12 @@ const Call = ({ userName, setIsCalling }) => {
       playRingtone();
     });
 
-    // Handle incoming messages
     peer.on('connection', (conn) => {
       conn.on('data', (data) => {
         if (data.type === 'message') {
           setMessages((prevMessages) => [...prevMessages, data]);
           playReceiveTone();  // Play receive tone on incoming message
         } else if (data.type === 'file') {
-          // Handle incoming file
           const blob = new Blob([data.file], { type: data.file.type });
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
@@ -52,7 +49,6 @@ const Call = ({ userName, setIsCalling }) => {
     return () => peer.destroy(); // Cleanup peer on unmount
   }, []);
 
-  // Play ringtone function
   const playRingtone = () => {
     const audio = new Audio('/audios/ring.wav');
     audio.loop = true;
@@ -67,19 +63,16 @@ const Call = ({ userName, setIsCalling }) => {
     }
   };
 
-  // Play send tone
   const playSendTone = () => {
     const audio = new Audio('/audios/send-tone.wav');
     audio.play();
   };
 
-  // Play receive tone
   const playReceiveTone = () => {
     const audio = new Audio('/audios/receive-tone.wav');
     audio.play();
   };
 
-  // Start call function
   const startCall = () => {
     navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
       const outgoingCall = peerRef.current.call(remotePeerId, stream);
@@ -90,15 +83,12 @@ const Call = ({ userName, setIsCalling }) => {
         remoteAudioRef.current.srcObject = remoteStream; // Play remote stream
       });
       playRingtone();
-      // Establish a connection for messages
       const conn = peerRef.current.connect(remotePeerId);
       conn.on('open', () => {
-        // Connection is open, can send messages
       });
     });
   };
 
-  // Answer the incoming call
   const answerCall = () => {
     stopRingtone();
     navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
@@ -110,15 +100,12 @@ const Call = ({ userName, setIsCalling }) => {
       setIncomingCall(null);
       setIsCalling(true); // Set the call state to true
       setIsCallingLocal(true); // Update local call state
-      // Establish a connection for messages
       const conn = peerRef.current.connect(incomingCall.peer);
       conn.on('open', () => {
-        // Connection is open, can send messages
       });
     });
   };
 
-  // Decline the call
   const declineCall = () => {
     stopRingtone();
     setIncomingCall(null);
@@ -126,7 +113,6 @@ const Call = ({ userName, setIsCalling }) => {
     setIsCallingLocal(false); // Update local call state
   };
 
-  // Send a new message
   const sendMessage = () => {
     if (newMessage.trim()) {
       const conn = peerRef.current.connect(remotePeerId);
@@ -139,12 +125,10 @@ const Call = ({ userName, setIsCalling }) => {
     }
   };
 
-  // Handle file selection
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
   };
 
-  // Send the selected file
   const sendFile = () => {
     if (file) {
       const conn = peerRef.current.connect(remotePeerId);
@@ -173,8 +157,6 @@ const Call = ({ userName, setIsCalling }) => {
           Connect and Call
         </Button>
       </div>
-
-      {/* Incoming Call Modal */}
       <Modal show={!!incomingCall} onHide={declineCall}>
         <Modal.Header closeButton>
           <Modal.Title>Incoming Call</Modal.Title>
@@ -194,7 +176,6 @@ const Call = ({ userName, setIsCalling }) => {
 
       <audio ref={remoteAudioRef} autoPlay />
 
-      {/* Message Area */}
       <div>
         <h5>Messages</h5>
         <div style={{ border: '1px solid #ccc', padding: '10px', height: '150px', overflowY: 'scroll' }}>
@@ -215,7 +196,6 @@ const Call = ({ userName, setIsCalling }) => {
         </Form>
       </div>
 
-      {/* File Sharing Area */}
       <div>
         <h5>Send File</h5>
         <input type="file" ref={fileInputRef} onChange={handleFileChange} />
