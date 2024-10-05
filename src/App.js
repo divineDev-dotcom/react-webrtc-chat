@@ -1,25 +1,32 @@
-import logo from './logo.svg';
+import React, { useState } from 'react';
+import { Container } from 'react-bootstrap';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import Call from './components/Call';
 import './App.css';
 
-function App() {
+const App = () => {
+  const [userName, setUserName] = useState('');
+  const [isCalling, setIsCalling] = useState(false); // Track if a call is active
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Container>
+      <Header />
+      <div className="mt-4">
+        {!isCalling && ( // Only show input when not calling
+          <input
+            type="text"
+            placeholder="Enter Your Name"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
+          />
+        )}
+      </div>
+      {userName && <h5>Welcome, {userName}!</h5>}
+      <Call userName={userName} setIsCalling={setIsCalling} /> {/* Pass down setIsCalling */}
+      <Footer />
+    </Container>
   );
-}
+};
 
 export default App;
