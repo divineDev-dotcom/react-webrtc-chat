@@ -4,7 +4,7 @@ import { Container } from 'react-bootstrap';
 const Footer = () => {
   return (
     <Container className="text-center mt-4">
-      <p>&copy; {new Date().getFullYear()} Voice Chat Application</p>
+      <p>&copy; {new Date().getFullYear()} Imtiyajodin babar Application</p>
     </Container>
   );
 };

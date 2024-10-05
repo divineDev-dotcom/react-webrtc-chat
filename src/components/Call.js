@@ -14,7 +14,7 @@ const Call = ({ userName, setIsCalling }) => {
   const [peerId, setPeerId] = useState('');
   const remoteAudioRef = useRef(null);
   const peerRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const connRef = useRef(null); // Store the connection for ongoing messaging
 
   useEffect(() => {
     const peer = new Peer();
@@ -31,17 +31,13 @@ const Call = ({ userName, setIsCalling }) => {
     });
 
     peer.on('connection', (conn) => {
+      connRef.current = conn; // Store the connection
       conn.on('data', (data) => {
         if (data.type === 'message') {
           setMessages((prevMessages) => [...prevMessages, data]);
           playReceiveTone();  // Play receive tone on incoming message
         } else if (data.type === 'file') {
-          const blob = new Blob([data.file], { type: data.file.type });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = data.file.name;
-          link.click();
+          handleReceivedFile(data.file);
         }
       });
     });
@@ -49,9 +45,19 @@ const Call = ({ userName, setIsCalling }) => {
     return () => peer.destroy(); // Cleanup peer on unmount
   }, []);
 
+  const handleReceivedFile = (fileData) => {
+    const blob = new Blob([fileData], { type: fileData.type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileData.name; // Use the name sent with the file
+    link.click();
+    URL.revokeObjectURL(url); // Clean up the URL object after use
+  };
+
   const playRingtone = () => {
     const audio = new Audio('/audios/ring.wav');
-    audio.loop = true;
+    audio.loop = false;
     audio.play();
     setRingtone(audio);
   };
@@ -83,8 +89,10 @@ const Call = ({ userName, setIsCalling }) => {
         remoteAudioRef.current.srcObject = remoteStream; // Play remote stream
       });
       playRingtone();
+      // Establish a persistent connection for messaging
       const conn = peerRef.current.connect(remotePeerId);
       conn.on('open', () => {
+        connRef.current = conn; // Save the connection for sending messages
       });
     });
   };
@@ -100,8 +108,10 @@ const Call = ({ userName, setIsCalling }) => {
       setIncomingCall(null);
       setIsCalling(true); // Set the call state to true
       setIsCallingLocal(true); // Update local call state
+      // Establish a persistent connection for messaging
       const conn = peerRef.current.connect(incomingCall.peer);
       conn.on('open', () => {
+        connRef.current = conn; // Save the connection for sending messages
       });
     });
   };
@@ -114,14 +124,11 @@ const Call = ({ userName, setIsCalling }) => {
   };
 
   const sendMessage = () => {
-    if (newMessage.trim()) {
-      const conn = peerRef.current.connect(remotePeerId);
-      conn.on('open', () => {
-        conn.send({ type: 'message', sender: userName, message: newMessage });
-        setMessages((prevMessages) => [...prevMessages, { type: 'message', sender: userName, message: newMessage }]);
-        playSendTone();  // Play send tone on outgoing message
-        setNewMessage('');
-      });
+    if (newMessage.trim() && connRef.current) {
+      connRef.current.send({ type: 'message', sender: userName, message: newMessage });
+      setMessages((prevMessages) => [...prevMessages, { type: 'message', sender: userName, message: newMessage }]);
+      playSendTone();  // Play send tone on outgoing message
+      setNewMessage(''); // Clear the input after sending
     }
   };
 
@@ -130,12 +137,18 @@ const Call = ({ userName, setIsCalling }) => {
   };
 
   const sendFile = () => {
-    if (file) {
-      const conn = peerRef.current.connect(remotePeerId);
-      conn.on('open', () => {
-        conn.send({ type: 'file', file });
-        setFile(null); // Clear the file after sending
-      });
+    if (file && connRef.current) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const fileData = {
+          name: file.name,
+          type: file.type,
+          file: new Uint8Array(e.target.result) // Read the file as an ArrayBuffer
+        };
+        connRef.current.send({ type: 'file', file: fileData }); // Send the file
+      };
+      reader.readAsArrayBuffer(file); // Read the file as ArrayBuffer
+      setFile(null); // Clear the file after sending
     }
   };
 
@@ -149,6 +162,7 @@ const Call = ({ userName, setIsCalling }) => {
           value={remotePeerId}
           onChange={(e) => setRemotePeerId(e.target.value)}
         />
+<br/>
         <Button
           variant="primary"
           onClick={startCall}
@@ -173,9 +187,7 @@ const Call = ({ userName, setIsCalling }) => {
           </Button>
         </Modal.Footer>
       </Modal>
-
       <audio ref={remoteAudioRef} autoPlay />
-
       <div>
         <h5>Messages</h5>
         <div style={{ border: '1px solid #ccc', padding: '10px', height: '150px', overflowY: 'scroll' }}>
@@ -192,13 +204,14 @@ const Call = ({ userName, setIsCalling }) => {
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
           />
+<br/>
           <Button type="submit">Send</Button>
         </Form>
       </div>
-
       <div>
         <h5>Send File</h5>
-        <input type="file" ref={fileInputRef} onChange={handleFileChange} />
+        <input type="file" onChange={handleFileChange} />
+<br/>
         <Button onClick={sendFile}>Send File</Button>
       </div>
     </>
