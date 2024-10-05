@@ -12,7 +12,10 @@ const Call = ({ userName, setIsCalling }) => {
   const [newMessage, setNewMessage] = useState('');
   const [file, setFile] = useState(null);
   const [peerId, setPeerId] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoCall, setIsVideoCall] = useState(false);
   const remoteAudioRef = useRef(null);
+  const remoteVideoRef = useRef(null); // Reference for remote video
   const peerRef = useRef(null);
   const connRef = useRef(null); // Store the connection for ongoing messaging
 
@@ -79,40 +82,54 @@ const Call = ({ userName, setIsCalling }) => {
     audio.play();
   };
 
-  const startCall = () => {
-    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-      const outgoingCall = peerRef.current.call(remotePeerId, stream);
-      setCall(outgoingCall);
-      setIsCalling(true); // Set the call state to true
-      setIsCallingLocal(true); // Update local call state
-      outgoingCall.on('stream', (remoteStream) => {
-        remoteAudioRef.current.srcObject = remoteStream; // Play remote stream
-      });
-      playRingtone();
-      // Establish a persistent connection for messaging
-      const conn = peerRef.current.connect(remotePeerId);
-      conn.on('open', () => {
-        connRef.current = conn; // Save the connection for sending messages
-      });
+  const startCall = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: !isMuted,
+      video: isVideoCall // Toggle video based on state
+    });
+
+    const outgoingCall = peerRef.current.call(remotePeerId, stream);
+    setCall(outgoingCall);
+    setIsCalling(true); // Set the call state to true
+    setIsCallingLocal(true); // Update local call state
+    outgoingCall.on('stream', (remoteStream) => {
+      if (isVideoCall) {
+        remoteVideoRef.current.srcObject = remoteStream; // Play remote video stream
+      } else {
+        remoteAudioRef.current.srcObject = remoteStream; // Play remote audio stream
+      }
+    });
+    playRingtone();
+    // Establish a persistent connection for messaging
+    const conn = peerRef.current.connect(remotePeerId);
+    conn.on('open', () => {
+      connRef.current = conn; // Save the connection for sending messages
     });
   };
 
-  const answerCall = () => {
+  const answerCall = async () => {
     stopRingtone();
-    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-      incomingCall.answer(stream);
-      incomingCall.on('stream', (remoteStream) => {
-        remoteAudioRef.current.srcObject = remoteStream; // Play remote stream
-      });
-      setCall(incomingCall);
-      setIncomingCall(null);
-      setIsCalling(true); // Set the call state to true
-      setIsCallingLocal(true); // Update local call state
-      // Establish a persistent connection for messaging
-      const conn = peerRef.current.connect(incomingCall.peer);
-      conn.on('open', () => {
-        connRef.current = conn; // Save the connection for sending messages
-      });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: !isMuted,
+      video: isVideoCall // Toggle video based on state
+    });
+    
+    incomingCall.answer(stream);
+    incomingCall.on('stream', (remoteStream) => {
+      if (isVideoCall) {
+        remoteVideoRef.current.srcObject = remoteStream; // Play remote video stream
+      } else {
+        remoteAudioRef.current.srcObject = remoteStream; // Play remote audio stream
+      }
+    });
+    setCall(incomingCall);
+    setIncomingCall(null);
+    setIsCalling(true); // Set the call state to true
+    setIsCallingLocal(true); // Update local call state
+    // Establish a persistent connection for messaging
+    const conn = peerRef.current.connect(incomingCall.peer);
+    conn.on('open', () => {
+      connRef.current = conn; // Save the connection for sending messages
     });
   };
 
@@ -152,6 +169,42 @@ const Call = ({ userName, setIsCalling }) => {
     }
   };
 
+  const toggleMute = () => {
+    setIsMuted(prev => !prev);
+  };
+
+  const toggleVideoCall = () => {
+    setIsVideoCall(prev => !prev);
+    if (call) {
+      const stream = navigator.mediaDevices.getUserMedia({
+        audio: !isMuted,
+        video: !isVideoCall // Toggle video based on the new state
+      });
+      call.peerConnection.getSenders().forEach(sender => {
+        if (sender.track.kind === 'audio') {
+          sender.track.enabled = !isMuted;
+        } else if (sender.track.kind === 'video') {
+          sender.track.enabled = !isVideoCall;
+        }
+      });
+    }
+  };
+
+  const shareScreen = async () => {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true // Request audio if you want to share the internal sound
+    });
+
+    if (call) {
+      call.peerConnection.getSenders().forEach(sender => {
+        if (sender.track.kind === 'video') {
+          sender.replaceTrack(screenStream.getTracks()[0]);
+        }
+      });
+    }
+  };
+
   return (
     <>
       <div>
@@ -162,7 +215,7 @@ const Call = ({ userName, setIsCalling }) => {
           value={remotePeerId}
           onChange={(e) => setRemotePeerId(e.target.value)}
         />
-<br/>
+        <br />
         <Button
           variant="primary"
           onClick={startCall}
@@ -188,31 +241,26 @@ const Call = ({ userName, setIsCalling }) => {
         </Modal.Footer>
       </Modal>
       <audio ref={remoteAudioRef} autoPlay />
+      <video ref={remoteVideoRef} autoPlay style={{ width: '100%', display: isVideoCall ? 'block' : 'none' }} />
       <div>
         <h5>Messages</h5>
-        <div style={{ border: '1px solid #ccc', padding: '10px', height: '150px', overflowY: 'scroll' }}>
+        <div style={{ border: '1px solid black', height: '200px', overflowY: 'scroll' }}>
           {messages.map((msg, index) => (
-            <div key={index}>
-              <strong>{msg.sender}: </strong> {msg.message}
-            </div>
+            <div key={index}><strong>{msg.sender}:</strong> {msg.message}</div>
           ))}
         </div>
-        <Form inline onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
-          <Form.Control
-            type="text"
-            placeholder="Type your message..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-          />
-<br/>
-          <Button type="submit">Send</Button>
-        </Form>
-      </div>
-      <div>
-        <h5>Send File</h5>
+        <Form.Control
+          type="text"
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
+        />
+        <Button onClick={sendMessage}>Send</Button>
         <input type="file" onChange={handleFileChange} />
-<br/>
         <Button onClick={sendFile}>Send File</Button>
+        <Button onClick={toggleMute}>{isMuted ? 'Unmute' : 'Mute'}</Button>
+        <Button onClick={toggleVideoCall}>{isVideoCall ? 'Switch to Audio Call' : 'Switch to Video Call'}</Button>
+        <Button onClick={shareScreen}>Share Screen</Button>
       </div>
     </>
   );
