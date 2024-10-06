@@ -171,6 +171,9 @@ const Call = ({ userName, setIsCalling }) => {
 
   const toggleMute = () => {
     setIsMuted(prev => !prev);
+if (remoteAudioRef.current) {
+remoteAudioRef.current.muted = !isMuted;
+}
   };
 
   const toggleVideoCall = () => {
@@ -203,8 +206,10 @@ const Call = ({ userName, setIsCalling }) => {
         }
       });
     }
-  };
+};
 
+
+ 
   return (
     <>
       <div>
